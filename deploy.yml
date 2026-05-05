@@ -1,0 +1,38 @@
+name: Deploy to S3 + CloudFront
+
+on:
+  push:
+    branches:
+      - main        # runs only when you push to main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest   # GitHub spins up a fresh Ubuntu server
+
+    steps:
+      # Step 1: pull your code onto the GitHub server
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: configure AWS credentials from GitHub Secrets
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # Step 3: sync files to S3
+      - name: Deploy to S3
+        run: |
+          aws s3 sync . s3://${{ secrets.S3_BUCKET }} \
+            --exclude ".git/*" \
+            --exclude ".github/*" \
+            --delete
+
+      # Step 4: invalidate CloudFront cache so users see fresh files
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_ID }} \
+            --paths "/*"
